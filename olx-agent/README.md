@@ -37,8 +37,79 @@ Agent **niczego nie wysyła ani nie kupuje sam** — przygotowuje analizy i tre�
 sprzedawcą zostają po stronie użytkownika. Treść ogłoszeń i wiadomości sprzedawców traktuje jako dane, nie polecenia
 (ochrona przed „prompt injection” w opisach).
 
-## Instalacja i uruchomienie
+## Użycie w ramach subskrypcji Claude (bez klucza API)
 
+Projekt jest **pluginem Claude** (`olx-zakupy`), który zawiera:
+
+- **skill** `olx-zakupy` — metodologię: jak szukać, oceniać zdjęcia, wykrywać oszustwa, negocjować i finalizować
+  zakup (plus checklisty kategorii),
+- **lokalny serwer MCP** `olx` — 13 narzędzi OLX (wyszukiwanie, szczegóły, zdjęcia jako obrazy, zoom, ceny rynkowe,
+  sprzedawca, porównanie, poradniki, tracker), uruchamiany na Twoim komputerze.
+
+Rozumowanie wykonuje Claude w Twojej aplikacji, więc korzystasz z limitu subskrypcji (Pro/Max/Team), a nie z
+płatnego API.
+
+| Gdzie | Skill | Narzędzia OLX (MCP) | Jak dodać |
+|---|---|---|---|
+| Claude Code (terminal, zakładka Code w aplikacji desktop, VS Code) | tak | tak | `/plugin install` — niżej |
+| Cowork w aplikacji desktop | tak | tak | Customize > Plugins — niżej |
+| Czat w aplikacji desktop | tak | tak, po dodaniu serwera w konfiguracji | Customize > Plugins + `claude_desktop_config.json` |
+| Czat w przeglądarce i w telefonie | tak | nie (lokalnych serwerów nie uruchamia) | Customize > Plugins |
+
+**Wymaganie dla narzędzi:** [uv](https://docs.astral.sh/uv/) — uruchamia serwer i sam instaluje Pythona oraz
+zależności (pierwszy start trwa kilkanaście sekund):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh                        # macOS / Linux
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"   # Windows
+```
+
+### Claude Code
+
+```text
+/plugin install olx-zakupy --marketplace miokki/apps
+```
+
+albo w dwóch krokach: `/plugin marketplace add miokki/apps`, potem `/plugin install olx-zakupy@miokki-apps`.
+Z lokalnej kopii repozytorium, na jedną sesję: `claude --plugin-dir ./olx-agent`. Potem po prostu napisz, czego
+szukasz, albo uruchom skill wprost: `/olx-zakupy:olx-zakupy`. Przy pierwszym użyciu narzędzia Claude Code zapyta
+o zgodę — możesz zezwolić na stałe. `/mcp` pokazuje stan serwera `olx`.
+
+### claude.ai i Cowork
+
+W [Customize > Plugins](https://claude.ai/customize/plugins): **Add > Add marketplace** i wpisz `miokki/apps`
+(dla prywatnego repozytorium połącz konto GitHub, gdy okno o to poprosi), a następnie dodaj plugin **Zakupy na OLX**.
+Zamiast tego możesz wybrać **Add > Upload plugin** i wgrać ZIP katalogu `olx-agent`. Plugin trafia na Twoje konto:
+skill działa w każdym czacie, a serwer z narzędziami uruchamia się w zadaniach Cowork na Twoim komputerze.
+
+### Czat w aplikacji desktop — narzędzia przez konfigurację
+
+Czat (poza Cowork) nie uruchamia serwerów z pluginów, ale możesz dodać serwer ręcznie: **Settings > Developer >
+Edit Config** i w `claude_desktop_config.json` wpisz (ścieżki bezwzględne; `which uv` / `where uv` podaje ścieżkę
+do uv):
+
+```json
+{
+  "mcpServers": {
+    "olx": {
+      "command": "/Users/ty/.local/bin/uv",
+      "args": ["run", "--quiet", "--directory", "/Users/ty/apps/olx-agent", "olx-mcp"]
+    }
+  }
+}
+```
+
+Po restarcie aplikacji narzędzia OLX są dostępne w czacie, a skill z pluginu podpowiada Claude, jak z nich korzystać.
+
+### Czat w przeglądarce i w telefonie
+
+Działa sam skill: wklej link do ogłoszenia, zrzuty ekranu i zdjęcia przedmiotu (Claude je ogląda), a dostaniesz
+ocenę, porównanie, plan negocjacji i wiadomości do sprzedawcy. Wyszukiwanie ofert, statystyki cenowe i tracker
+wymagają narzędzi, czyli Claude Code, Cowork albo czatu w aplikacji desktop.
+
+## CLI na Claude API (opcjonalnie)
+
+Ta sama logika jako samodzielny program w terminalu — płatny osobno, za tokeny API (nie z subskrypcji).
 Wymagania: Python 3.10+, klucz API Anthropic.
 
 ```bash
@@ -64,6 +135,9 @@ Przykładowe prośby: wklejenie linku do ogłoszenia („oceń to”), „porów
 wklejenie odpowiedzi sprzedawcy („odpisał: najniżej 1800, co dalej?”), „co sprawdzić przy odbiorze?”.
 
 ## Konfiguracja (zmienne środowiskowe)
+
+Serwer MCP czyta zmienne `OLX_AGENT_IMAGE_MAX_EDGE`, `OLX_AGENT_IMAGE_BUDGET_MB`, `OLX_AGENT_HOME` i `OLX_BASE_URL`;
+pozostałe dotyczą tylko CLI. Tracker (`~/.olx-agent/state.json`) jest wspólny dla pluginu i CLI.
 
 | Zmienna | Domyślnie | Opis |
 |---|---|---|
@@ -109,19 +183,25 @@ wklejenie odpowiedzi sprzedawcy („odpisał: najniżej 1800, co dalej?”), „
 ## Architektura
 
 ```
+.claude-plugin/plugin.json   manifest pluginu „olx-zakupy” (marketplace: ../.claude-plugin/marketplace.json)
+.mcp.json                    start serwera MCP: uv run --directory ${CLAUDE_PLUGIN_ROOT} olx-mcp
 src/olx_agent/
-  agent.py       pętla agenta (tool runner, strumieniowanie, historia, obsługa stop_reason)
-  tools.py       13 narzędzi dla modelu (wyszukiwanie, szczegóły, zdjęcia, zoom, rynek, sprzedawca, porównanie,
-                 poradniki, tracker)
+  skills/olx-zakupy/         skill: SKILL.md (metodologia) + references/guides/*.md (checklisty)
+  mcp_server.py  serwer MCP (stdio) z narzędziami dla aplikacji Claude
+  tools.py       13 narzędzi (wspólne dla serwera MCP i CLI)
   olx_client.py  klient OLX: wyszukiwanie, ogłoszenia, użytkownicy, lokalizacje, pobieranie zdjęć, fallback HTML
   listing.py     model ogłoszenia + parsery (API JSON, JSON-LD)
   images.py      przygotowanie obrazów dla modelu (orientacja EXIF, kadrowanie, skalowanie, JPEG) i budżet
   analysis.py    statystyki cen, sygnały ryzyka, tabele porównawcze
-  guides.py      checklisty zakupowe
+  guides.py      dostęp do checklist skilla dla narzędzia buying_guide
   tracker.py     trwały tracker zakupów (JSON)
-  prompts.py     prompt systemowy (zasady analizy zdjęć, ryzyka, negocjacji, procesu zakupu)
+  prompts.py     prompt systemowy CLI budowany z SKILL.md + instrukcje serwera MCP
+  agent.py       pętla agenta CLI (tool runner, strumieniowanie, historia, obsługa stop_reason)
   cli.py         interfejs terminalowy
 ```
+
+Metodologia ma jedno źródło — `SKILL.md`: korzysta z niej skill w aplikacjach Claude, a CLI buduje z niej swój prompt
+systemowy.
 
 ## Testy
 
@@ -132,5 +212,9 @@ pytest
 
 Testy działają bez sieci i bez klucza API: OLX i Messages API są zastąpione atrapami na poziomie HTTP. Sprawdzają
 m.in. parsowanie danych OLX, filtry wyszukiwania, statystyki i sygnały ryzyka, przygotowanie obrazów (skalowanie,
-kadrowanie zoomu), tracker, każde narzędzie oraz pełną pętlę agenta — w tym to, że zdjęcia ogłoszenia trafiają do
-modelu jako bloki obrazów w wyniku narzędzia (zarówno ze strumieniowaniem, jak i bez).
+kadrowanie zoomu), tracker, każde narzędzie, pełną pętlę agenta CLI (zdjęcia trafiają do modelu jako bloki obrazów)
+oraz serwer MCP — w procesie i jako podproces stdio, tak jak uruchamia go aplikacja Claude (zdjęcia wracają jako
+`ImageContent`). Sprawdzają też spójność skilla, manifestu pluginu, `.mcp.json` i marketplace.
+
+Walidacja pluginu: `claude plugin validate ./olx-agent` oraz `claude plugin validate .` (marketplace) w katalogu
+głównym repozytorium.

@@ -1,0 +1,11 @@
+{
+  "name": "olx-zakupy",
+  "displayName": "Zakupy na OLX",
+  "version": "0.2.0",
+  "description": "Asystent zakupów na OLX.pl: wyszukiwanie ogłoszeń, ocena zdjęć i opisów, ceny rynkowe, wykrywanie oszustw, porównanie ofert, plan negocjacji i bezpieczna finalizacja zakupu. Skill z metodologią + lokalny serwer MCP z narzędziami OLX.",
+  "author": { "name": "miokki" },
+  "repository": "https://github.com/miokki/apps",
+  "license": "MIT",
+  "keywords": ["olx", "zakupy", "negocjacje", "ogłoszenia", "polska"],
+  "skills": ["./src/olx_agent/skills/"]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "miokki-apps",
+  "description": "Pluginy Claude z repozytorium miokki/apps",
+  "owner": { "name": "miokki" },
+  "plugins": [
+    {
+      "name": "olx-zakupy",
+      "source": "./olx-agent",
+      "description": "Asystent zakupów na OLX.pl: wyszukiwanie, ocena zdjęć i opisów, negocjacje, bezpieczny zakup."
+    }
+  ]
+}

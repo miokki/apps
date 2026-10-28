@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "olx": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--directory", "${CLAUDE_PLUGIN_ROOT}", "olx-mcp"]
+    }
+  }
+}
